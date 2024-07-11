@@ -8,3 +8,8 @@ SELECT pgkv.list('name.');
 SELECT pgkv.list('id.');
 SELECT pgkv.list();
 SELECT pgkv.list('name.1');
+SELECT pgkv.get('name.1');
+SELECT pgkv.del('id.1');
+SELECT pgkv.del('name.1');
+SELECT pgkv.list('name.');
+SELECT pgkv.list('id.');

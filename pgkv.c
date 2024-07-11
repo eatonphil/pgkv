@@ -56,8 +56,37 @@ PG_FUNCTION_INFO_V1(pgkv_get);
 Datum
 pgkv_get(PG_FUNCTION_ARGS)
 {
-  /* TODO */
-  PG_RETURN_TEXT_P(cstring_to_text("OK"));
+  TableScanDesc scan;
+  HeapTuple tup;
+  TupleDesc tupDesc;
+  Relation rel;
+  ScanKeyData key[1];
+  bool isnull;
+  Datum val;
+
+  if (PG_ARGISNULL(0))
+    elog(ERROR, "key must not be NULL");
+  
+  ScanKeyInit(&key[0],
+	      1, /* 1-indexed column number. i.e. the key */
+	      BTEqualStrategyNumber, F_TEXTEQ,
+	      PG_GETARG_DATUM(0));
+
+  rel = table_open(pgkv_get_store_table_oid(), AccessShareLock);
+  tupDesc = RelationGetDescr(rel);
+
+  scan = heap_beginscan(rel, &SnapshotSelfData, 1, key, NULL, 0);
+  tup = heap_getnext(scan, ForwardScanDirection);
+  if (!HeapTupleIsValid(tup))
+    elog(ERROR, "key does not exist");
+
+  // The attribute to get is 1-indexed.
+  val = heap_getattr(tup, 2, tupDesc, &isnull);
+
+  heap_endscan(scan);
+  table_close(rel, AccessShareLock);
+
+  return val;
 }
 
 PG_FUNCTION_INFO_V1(pgkv_del);
@@ -65,7 +94,31 @@ PG_FUNCTION_INFO_V1(pgkv_del);
 Datum
 pgkv_del(PG_FUNCTION_ARGS)
 {
-  /* TODO */
+  TableScanDesc scan;
+  HeapTuple tup;
+  Relation rel;
+  ScanKeyData key[1];
+
+  if (PG_ARGISNULL(0))
+    elog(ERROR, "key must not be NULL");
+  
+  ScanKeyInit(&key[0],
+	      1, /* 1-indexed column number. i.e. the key */
+	      BTEqualStrategyNumber, F_TEXTEQ,
+	      PG_GETARG_DATUM(0));
+
+  rel = table_open(pgkv_get_store_table_oid(), RowExclusiveLock);
+
+  scan = heap_beginscan(rel, &SnapshotSelfData, 1, key, NULL, 0);
+  tup = heap_getnext(scan, ForwardScanDirection);
+  if (!HeapTupleIsValid(tup))
+    elog(ERROR, "key does not exist");
+
+  CatalogTupleDelete(rel, &tup->t_self);
+
+  heap_endscan(scan);
+  table_close(rel, RowExclusiveLock);
+
   PG_RETURN_VOID();
 }
 
