@@ -30,22 +30,24 @@ pgkv_get_store_table_oid()
 Datum
 pgkv_set(PG_FUNCTION_ARGS)
 {
-  TupleDesc tupDesc;
-  Datum values[2] = {PG_GETARG_DATUM(0), PG_GETARG_DATUM(1)};
-  /* Neither key nor value may be NULL. */
-  bool nulls[2] = {false, false};
-  HeapTuple tup;
   Relation rel;
+  TupleTableSlot *slot;
 
   if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
     elog(ERROR, "key and value must not be NULL");
 
   rel = table_open(pgkv_get_store_table_oid(), RowExclusiveLock);
-  tupDesc = RelationGetDescr(rel);
-  tup = heap_form_tuple(tupDesc, values, nulls);
-  CatalogTupleInsert(rel, tup);
 
-  heap_freetuple(tup);
+  slot = table_slot_create(rel, NULL);
+  ExecClearTuple(slot);
+  slot->tts_values[0] = PG_GETARG_DATUM(0);
+  slot->tts_values[1] = PG_GETARG_DATUM(1);
+  memset(slot->tts_isnull, 0, 2);
+  ExecStoreVirtualTuple(slot);
+
+  simple_table_tuple_insert(rel, slot);
+
+  ExecDropSingleTupleTableSlot(slot);
   table_close(rel, RowExclusiveLock);
 
   PG_RETURN_VOID();
@@ -114,7 +116,7 @@ pgkv_del(PG_FUNCTION_ARGS)
   if (!HeapTupleIsValid(tup))
     elog(ERROR, "key does not exist");
 
-  CatalogTupleDelete(rel, &tup->t_self);
+  simple_table_tuple_delete(rel, &tup->t_self, &SnapshotSelfData);
 
   heap_endscan(scan);
   table_close(rel, RowExclusiveLock);
