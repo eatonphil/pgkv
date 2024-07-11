@@ -108,13 +108,11 @@ pgkv_list(PG_FUNCTION_ARGS)
     key = TextDatumGetCString(heap_getattr(tup, 1, tupDesc, &isnull));
     val = TextDatumGetCString(heap_getattr(tup, 2, tupDesc, &isnull));
 
-    // We control the end of the scan.
+    // Postgres heap table rows are not ordered by the PRIMARY KEY, so
+    // the best we can do is just skip keys that don't meet the prefix
+    // filter.
     if (strncmp(key, prefix, strlen(prefix)) > 0)
-    {
-      pfree(key);
-      pfree(val);
-      break;
-    }
+      continue;
 
     if (res.len > 1)
       appendStringInfoString(&res, ", ");
