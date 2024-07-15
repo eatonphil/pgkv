@@ -1,3 +1,17 @@
+/*
+ * This extension implements a key-value API on top of a single
+ * Postgres table (pgkv.store). The key column is the PRIMARY KEY for
+ * pgkv.store.
+ *
+ * It provides the following methods:
+ *
+ * - pgkv.set(key, value): Stores they key-value mapping in pgkv.store.
+ * - pgkv.get(key): Returns the value for the key stored in pgkv.store.
+ * - pgkv.del(key): Removes the row containing the key from pgkv.store.
+ * - pgkv.list(keyPrefix): Returns a string formatting the key-value
+ *   pair for all keys that start with keyPrefix within pgkv.store.
+ */
+
 #include <string.h>
 
 #include "postgres.h"
@@ -16,6 +30,7 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(pgkv_set);
 
+/* Return the Oid for the pgkv.store table. */
 static Oid
 pgkv_get_store_table_oid()
 {
@@ -27,6 +42,13 @@ pgkv_get_store_table_oid()
   return tablename_oid;
 }
 
+/*
+ * Takes two arguments, a key and a value and store the key and value
+ * as a row in the pkgkv.store table.
+ *
+ * e.g. `SELECT pgkv.set('name.1', 'Julia');` sets the key 'name.1' to
+ * 'Julia'.
+ */
 Datum
 pgkv_set(PG_FUNCTION_ARGS)
 {
@@ -55,6 +77,13 @@ pgkv_set(PG_FUNCTION_ARGS)
 
 PG_FUNCTION_INFO_V1(pgkv_get);
 
+/*
+ * Takes a single argument (a key) and scans pgkv.store's on the
+ * primary key column to find the value.
+ *
+ * e.g. `SELECT pgkv.get('name.1');` returns the value for the key
+ * 'name.1'.
+ */
 Datum
 pgkv_get(PG_FUNCTION_ARGS)
 {
@@ -68,7 +97,7 @@ pgkv_get(PG_FUNCTION_ARGS)
 
   if (PG_ARGISNULL(0))
     elog(ERROR, "key must not be NULL");
-  
+
   ScanKeyInit(&key[0],
 	      1, /* 1-indexed column number. i.e. the key */
 	      BTEqualStrategyNumber, F_TEXTEQ,
@@ -93,6 +122,12 @@ pgkv_get(PG_FUNCTION_ARGS)
 
 PG_FUNCTION_INFO_V1(pgkv_del);
 
+/*
+ * Deletes a single key-value pair from pgkv.store.
+ *
+ * e.g. `SELECT pgkv.del('name.1');` deletes the row where the key is
+ * 'name.1'.
+ */
 Datum
 pgkv_del(PG_FUNCTION_ARGS)
 {
@@ -126,6 +161,14 @@ pgkv_del(PG_FUNCTION_ARGS)
 
 PG_FUNCTION_INFO_V1(pgkv_list);
 
+/*
+ * Returns a formatted list (as a string) of all key-value pairs that
+ * match the keyPrefix. Does a scan on `pkgv.store` using the primary
+ * key column.
+ *
+ * e.g. `SELECT pgkv_list('name.');` returns all key-value pairs
+ * where the key starts with 'name.'.
+ */
 Datum
 pgkv_list(PG_FUNCTION_ARGS)
 {
