@@ -93,7 +93,7 @@ pgkv_get(PG_FUNCTION_ARGS)
   Relation rel;
   ScanKeyData key[1];
   bool isnull;
-  Datum val;
+  char *val;
 
   if (PG_ARGISNULL(0))
     elog(ERROR, "key must not be NULL");
@@ -112,12 +112,12 @@ pgkv_get(PG_FUNCTION_ARGS)
     elog(ERROR, "key does not exist");
 
   // The attribute to get is 1-indexed.
-  val = heap_getattr(tup, 2, tupDesc, &isnull);
+  val = TextDatumGetCString(heap_getattr(tup, 2, tupDesc, &isnull));
 
   heap_endscan(scan);
   table_close(rel, AccessShareLock);
 
-  return val;
+  PG_RETURN_TEXT_P(cstring_to_text(val));
 }
 
 PG_FUNCTION_INFO_V1(pgkv_del);
