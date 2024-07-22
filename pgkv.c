@@ -110,7 +110,7 @@ pgkv_get(PG_FUNCTION_ARGS)
   rel = table_open(pgkv_get_store_table_oid(), AccessShareLock);
   tupDesc = RelationGetDescr(rel);
 
-  scan = heap_beginscan(rel, &SnapshotSelfData, sizeof key / sizeof key[0], key, NULL, 0);
+  scan = heap_beginscan(rel, GetActiveSnapshot(), sizeof key / sizeof key[0], key, NULL, 0);
   tup = heap_getnext(scan, ForwardScanDirection);
   if (!HeapTupleIsValid(tup))
     elog(ERROR, "key does not exist");
@@ -150,12 +150,12 @@ pgkv_del(PG_FUNCTION_ARGS)
 
   rel = table_open(pgkv_get_store_table_oid(), RowExclusiveLock);
 
-  scan = heap_beginscan(rel, &SnapshotSelfData, sizeof key / sizeof key[0], key, NULL, 0);
+  scan = heap_beginscan(rel, GetActiveSnapshot(), sizeof key / sizeof key[0], key, NULL, 0);
   tup = heap_getnext(scan, ForwardScanDirection);
   if (!HeapTupleIsValid(tup))
     elog(ERROR, "key does not exist");
 
-  simple_table_tuple_delete(rel, &tup->t_self, &SnapshotSelfData);
+  simple_table_tuple_delete(rel, &tup->t_self, GetActiveSnapshot());
 
   heap_endscan(scan);
   table_close(rel, RowExclusiveLock);
@@ -200,7 +200,7 @@ pgkv_list(PG_FUNCTION_ARGS)
   rel = table_open(pgkv_get_store_table_oid(), AccessShareLock);
   tupDesc = RelationGetDescr(rel);
 
-  scan = heap_beginscan(rel, &SnapshotSelfData, sizeof key / sizeof key[0], key, NULL, 0);
+  scan = heap_beginscan(rel, GetActiveSnapshot(), sizeof key / sizeof key[0], key, NULL, 0);
   while (HeapTupleIsValid(tup = heap_getnext(scan, ForwardScanDirection)))
   {
     bool isnull;
