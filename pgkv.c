@@ -30,6 +30,10 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(pgkv_set);
 
+/* Table columns and their indexes, 1-indexed. */
+#define Anum_pgkv_store_key 1
+#define Anum_pgkv_store_value 2
+
 /* Return the Oid for the pgkv.store table. */
 static Oid
 pgkv_get_store_table_oid()
@@ -62,8 +66,8 @@ pgkv_set(PG_FUNCTION_ARGS)
 
   slot = table_slot_create(rel, NULL);
   ExecClearTuple(slot);
-  slot->tts_values[0] = PG_GETARG_DATUM(0);
-  slot->tts_values[1] = PG_GETARG_DATUM(1);
+  slot->tts_values[Anum_pgkv_store_key - 1] = PG_GETARG_DATUM(0);
+  slot->tts_values[Anum_pgkv_store_value - 1] = PG_GETARG_DATUM(1);
   memset(slot->tts_isnull, 0, 2);
   ExecStoreVirtualTuple(slot);
 
@@ -99,20 +103,20 @@ pgkv_get(PG_FUNCTION_ARGS)
     elog(ERROR, "key must not be NULL");
 
   ScanKeyInit(&key[0],
-	      1, /* 1-indexed column number. i.e. the key */
+	      Anum_pgkv_store_key,
 	      BTEqualStrategyNumber, F_TEXTEQ,
 	      PG_GETARG_DATUM(0));
 
   rel = table_open(pgkv_get_store_table_oid(), AccessShareLock);
   tupDesc = RelationGetDescr(rel);
 
-  scan = heap_beginscan(rel, &SnapshotSelfData, 1, key, NULL, 0);
+  scan = heap_beginscan(rel, &SnapshotSelfData, sizeof key / sizeof key[0], key, NULL, 0);
   tup = heap_getnext(scan, ForwardScanDirection);
   if (!HeapTupleIsValid(tup))
     elog(ERROR, "key does not exist");
 
-  // The attribute to get is 1-indexed.
-  val = TextDatumGetCString(heap_getattr(tup, 2, tupDesc, &isnull));
+  // Copy the value so we own it.
+  val = TextDatumGetCString(heap_getattr(tup, Anum_pgkv_store_value, tupDesc, &isnull));
 
   heap_endscan(scan);
   table_close(rel, AccessShareLock);
@@ -140,13 +144,13 @@ pgkv_del(PG_FUNCTION_ARGS)
     elog(ERROR, "key must not be NULL");
   
   ScanKeyInit(&key[0],
-	      1, /* 1-indexed column number. i.e. the key */
+	      Anum_pgkv_store_key,
 	      BTEqualStrategyNumber, F_TEXTEQ,
 	      PG_GETARG_DATUM(0));
 
   rel = table_open(pgkv_get_store_table_oid(), RowExclusiveLock);
 
-  scan = heap_beginscan(rel, &SnapshotSelfData, 1, key, NULL, 0);
+  scan = heap_beginscan(rel, &SnapshotSelfData, sizeof key / sizeof key[0], key, NULL, 0);
   tup = heap_getnext(scan, ForwardScanDirection);
   if (!HeapTupleIsValid(tup))
     elog(ERROR, "key does not exist");
@@ -186,7 +190,7 @@ pgkv_list(PG_FUNCTION_ARGS)
   prefix_text = cstring_to_text(prefix);
   
   ScanKeyInit(&key[0],
-	      1, /* 1-indexed column number. i.e. the key */
+	      Anum_pgkv_store_key,
 	      BTGreaterEqualStrategyNumber, F_TEXT_GE,
 	      PointerGetDatum(prefix_text));
 
@@ -196,15 +200,15 @@ pgkv_list(PG_FUNCTION_ARGS)
   rel = table_open(pgkv_get_store_table_oid(), AccessShareLock);
   tupDesc = RelationGetDescr(rel);
 
-  scan = heap_beginscan(rel, &SnapshotSelfData, 1, key, NULL, 0);
+  scan = heap_beginscan(rel, &SnapshotSelfData, sizeof key / sizeof key[0], key, NULL, 0);
   while (HeapTupleIsValid(tup = heap_getnext(scan, ForwardScanDirection)))
   {
     bool isnull;
     char *key, *val;
 
     // The attribute to get is 1-indexed.
-    key = TextDatumGetCString(heap_getattr(tup, 1, tupDesc, &isnull));
-    val = TextDatumGetCString(heap_getattr(tup, 2, tupDesc, &isnull));
+    key = TextDatumGetCString(heap_getattr(tup, Anum_pgkv_store_key, tupDesc, &isnull));
+    val = TextDatumGetCString(heap_getattr(tup, Anum_pgkv_store_value, tupDesc, &isnull));
 
     // Postgres heap table rows are not ordered by the PRIMARY KEY, so
     // the best we can do is just skip keys that don't meet the prefix
