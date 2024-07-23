@@ -30,7 +30,7 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(pgkv_set);
 
-/* Table columns and their indexes, 1-indexed. */
+/* Table columns and their offsets, 1-indexed. */
 #define Anum_pgkv_store_key 1
 #define Anum_pgkv_store_value 2
 
