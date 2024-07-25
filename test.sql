@@ -13,3 +13,5 @@ SELECT pgkv.del('id.1');
 SELECT pgkv.del('name.1');
 SELECT pgkv.list('name.');
 SELECT pgkv.list('id.');
+SELECT pgkv.set('id.2', '300');
+SELECT pgkv.get('id.2');

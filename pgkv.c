@@ -30,6 +30,7 @@ PG_MODULE_MAGIC;
 
 PG_FUNCTION_INFO_V1(pgkv_set);
 
+#define Natts_pgkv_store 2
 /* Table columns and their offsets, 1-indexed. */
 #define Anum_pgkv_store_key 1
 #define Anum_pgkv_store_value 2
@@ -57,23 +58,25 @@ Datum
 pgkv_set(PG_FUNCTION_ARGS)
 {
   Relation rel;
-  TupleTableSlot *slot;
+  TupleDesc tupdesc;
+  HeapTuple tuple;
+  bool nulls[Natts_pgkv_store];
+  Datum values[Natts_pgkv_store];
 
   if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
     elog(ERROR, "key and value must not be NULL");
 
   rel = table_open(pgkv_get_store_table_oid(), RowExclusiveLock);
+  tupdesc = RelationGetDescr(rel);
 
-  slot = table_slot_create(rel, NULL);
-  ExecClearTuple(slot);
-  slot->tts_values[Anum_pgkv_store_key - 1] = PG_GETARG_DATUM(0);
-  slot->tts_values[Anum_pgkv_store_value - 1] = PG_GETARG_DATUM(1);
-  memset(slot->tts_isnull, 0, 2);
-  ExecStoreVirtualTuple(slot);
+  memset(nulls, 0, sizeof(nulls));
+  values[Anum_pgkv_store_key - 1] = PG_GETARG_DATUM(0);
+  values[Anum_pgkv_store_value - 1] = PG_GETARG_DATUM(1);
+  tuple = heap_form_tuple(tupdesc, values, nulls);
 
-  simple_table_tuple_insert(rel, slot);
+  CatalogTupleInsert(rel, tuple);
 
-  ExecDropSingleTupleTableSlot(slot);
+  heap_freetuple(tuple);
   table_close(rel, RowExclusiveLock);
 
   PG_RETURN_VOID();
@@ -155,7 +158,7 @@ pgkv_del(PG_FUNCTION_ARGS)
   if (!HeapTupleIsValid(tup))
     elog(ERROR, "key does not exist");
 
-  simple_table_tuple_delete(rel, &tup->t_self, GetActiveSnapshot());
+  CatalogTupleDelete(rel, &tup->t_self);
 
   heap_endscan(scan);
   table_close(rel, RowExclusiveLock);
